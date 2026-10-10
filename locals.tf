@@ -37,13 +37,40 @@ locals {
   # 「環境まで固定された sub」で表現する。
   # ---------------------------------------------------------------------------
 
-  all_repos = [for r in var.app_repositories : r.repo]
+  # GitHubのOIDCは「不変サブジェクト」が既定で、subにオーナーIDと
+  # リポジトリIDが含まれる。
+  #
+  #   repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:<env>
+  #
+  # 名前ではなくIDに信頼を結びつけるため、リポジトリを削除して同名で
+  # 作り直した場合は信頼関係を明示的に張り直す必要がある。
+  # これはセキュリティ上望ましい挙動なので、そのまま受け入れる。
+  #
+  # repo_id が null のリポジトリ（まだGitHub上に作成していないもの）には
+  # AWSへのアクセスを許可しない。
+  repo_prefix = {
+    for r in var.app_repositories : r.repo =>
+    "repo:${var.github_owner}@${var.github_owner_id}/${r.repo}@${r.repo_id}"
+    if r.repo_id != null
+  }
+
+  platform_repo_prefix = {
+    for name, id in var.platform_repo_ids : name =>
+    "repo:${var.github_owner}@${var.github_owner_id}/${name}@${id}"
+    if id != null
+  }
+
+  # 権限を与える対象の接頭辞（アプリ + platform-infra）
+  deployable_prefixes = merge(
+    local.repo_prefix,
+    { for k, v in local.platform_repo_prefix : k => v if k == "platform-infra" },
+  )
 
   # CI（plan・静的解析）用。読み取り専用ロールが引き受ける。
-  # platform-infra 自身のCIもここに含める
+  # platform-cicd / platform-infra 自身のCIも含める
   ci_subjects = [
-    for repo in concat(local.all_repos, ["platform-infra"]) :
-    "repo:${var.github_owner}/${repo}:environment:ci"
+    for prefix in values(merge(local.repo_prefix, local.platform_repo_prefix)) :
+    "${prefix}:environment:ci"
   ]
 
   # 環境ごとのデプロイ用。
@@ -54,12 +81,12 @@ locals {
   deploy_subjects = {
     for env in var.environments :
     env => concat(
-      [for repo in local.all_repos : "repo:${var.github_owner}/${repo}:environment:${env}"],
+      [for prefix in values(local.repo_prefix) : "${prefix}:environment:${env}"],
       env == "dev" ? [
-        for repo in local.all_repos : "repo:${var.github_owner}/${repo}:environment:build"
+        for prefix in values(local.repo_prefix) : "${prefix}:environment:build"
       ] : [],
       env == "prod" ? [
-        for repo in local.all_repos : "repo:${var.github_owner}/${repo}:environment:prod-emergency"
+        for prefix in values(local.repo_prefix) : "${prefix}:environment:prod-emergency"
       ] : []
     )
   }
@@ -67,7 +94,9 @@ locals {
   # platform-infra 自身のデプロイ用。共有リソース（VPC/ALB/IAM）を変更するため、
   # prod と同じ3段承認を通す前提で environment: prod のみを許可する
   platform_subjects = [
-    "repo:${var.github_owner}/platform-infra:environment:prod",
+    for name, prefix in local.platform_repo_prefix :
+    "${prefix}:environment:prod"
+    if name == "platform-infra"
   ]
 
   # ---------------------------------------------------------------------------

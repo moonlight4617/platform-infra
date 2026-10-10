@@ -193,20 +193,63 @@ ALB 1台を3環境で共有しているため、`CreateRule` のリソースが�
 | SSMパラメータの参照関係を一覧する手段がない | ADR-0014の未解決事項 |
 | タスクがパブリックサブネットにある | ADR-0013。実務では必ずプライベートサブネットへ |
 
-## 検証済みの状態（2026-10-02）
+## 構築済みの状態（2026-10-11）
 
-| 項目 | 結果 |
+**apply済み。** state上のリソース数は165。
+
+| 分類 | 作成されたもの |
 |---|---|
-| `terraform fmt` | 差分なし |
-| `terraform validate`（本体） | Success |
-| `terraform validate`（bootstrap） | Success |
-| `terraform plan`（bootstrap） | 6 to add, 0 to change, 0 to destroy |
-| 本体の `plan` | **未実施**（tfstateバケットが未作成のため） |
-| `apply` | **未実施** |
+| IAMロール | `gha-ci` / `gha-deploy-dev` / `gha-deploy-stage` / `gha-deploy-prod` / `gha-platform` |
+| ECR | `servicea-appa` / `servicea-appc`（小文字。後述） |
+| DynamoDB | `releases` / `tickets` / `approval-audit` |
+| ECSクラスター | 環境ごとに3つ |
+| SSMパラメータ | 66個（`/platform/` 配下） |
+| S3 | tfstate / レポート / Lambda成果物 |
+| ネットワーク | VPC、パブリックサブネット×2、共有ALB |
 
-Terraformのバージョンは 1.16.4 で確認。
-環境に 1.8.4 も存在し、PATH上はそちらが優先されるため注意
-（1.8.4 では `required_version >= 1.10.0` を満たさずエラーになる）。
+GitHub側も設定済み。
 
-既存のGitHub OIDCプロバイダを確認済み（2024-06-13作成）。
-`create_oidc_provider = false` で既存を参照する設定にしている。
+| 項目 | 状態 |
+|---|---|
+| Secrets | 3リポジトリに13個ずつ |
+| Environments | 9個ずつ（`ci` / `build` / `dev` / `stage` / `prod-approval-1〜3` / `prod` / `prod-emergency`） |
+| 承認者 | `stage` / `prod-approval-*` / `prod-emergency` に設定済み |
+| デプロイ元ブランチ制限 | `build` / `stage` / `prod*` は main のみ |
+| シークレットスキャン・push protection | 有効 |
+| ワークフローの既定権限 | read |
+| フォークPRの実行 | 承認を要求 |
+
+**Free planのpublicリポジトリでも承認者必須設定が使えることを実機で確認した**
+（ADR-0002の前提が正しかった）。
+
+### applyで判明した制約
+
+**ECRのリポジトリ名は小文字のみ許可される。**
+
+```
+InvalidParameterException: Invalid parameter at 'repositoryName' failed to satisfy
+constraint: must satisfy regular expression '[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*...'
+```
+
+命名規約の `<service>-<app>`（`serviceA-appA`）は大文字を含むため、ECRに限り
+小文字化している（`servicea-appa`）。ECS・IAM・ロググループは大文字を許容するため
+変換していない。
+
+`platform-cicd` の `app-config` action が `ecr-repository` 出力（小文字化したもの）を
+返すため、アプリ側は意識する必要がない。
+
+**設計段階では見えず、実際のリソース名を決めてapplyしてはじめて分かる類の問題。**
+IAMの名前パターンの穴3箇所と合わせ、**この構成で実機検証なしに正しさを主張することは
+できない**ことの裏付けになっている。
+
+### Terraformのバージョンに注意
+
+環境に 1.8.4 も存在する。1.8.4 では `required_version >= 1.10.0`
+（S3ネイティブロックのため）を満たさずエラーになる。
+PATHは winget版（1.16.4）が優先されるよう設定済み。
+
+### OIDCプロバイダ
+
+既存のものを使用（2024-06-13作成、`client_id_list` は `sts.amazonaws.com`）。
+他用途で使われている可能性があるため、Terraformの管理下には取り込んでいない
+（`create_oidc_provider = false`）。

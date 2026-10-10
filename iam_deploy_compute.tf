@@ -45,20 +45,19 @@ data "aws_iam_policy_document" "deploy_compute" {
     }
   }
 
-  # 命名規約は <service>-<app>-<env>[-suffix]。
-  # タスク定義のARNは task-definition/<family>:<revision> なので、
-  # 環境名で終わる family（serviceA-appA-dev:3）にも一致させる必要がある。
-  # *-<env>-* だけでは一致しない
+  # ecs:DeregisterTaskDefinition は**リソースレベル権限に対応していない**。
+  # task-definition のARNを指定すると、どのパターンでも一致せず
+  # implicitDeny になる（IAMポリシーシミュレータで確認済み）。
+  #
+  # そのため `*` で許可し、環境の制限は DenyCrossEnvironmentMutation の
+  # タグ条件（Environment != 自環境 なら拒否）で行う。
+  # タスク定義にはEnvironmentタグを必ず付けることが規約になっている。
   statement {
     sid    = "EcsDeregisterTaskDefinition"
     effect = "Allow"
 
-    actions = ["ecs:DeregisterTaskDefinition"]
-
-    resources = [
-      "arn:${local.partition}:ecs:${local.region}:${local.account_id}:task-definition/*-${each.value}:*",
-      "arn:${local.partition}:ecs:${local.region}:${local.account_id}:task-definition/*-${each.value}-*:*",
-    ]
+    actions   = ["ecs:DeregisterTaskDefinition"]
+    resources = ["*"]
   }
 
   # ---------------------------------------------------------------

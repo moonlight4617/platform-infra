@@ -174,6 +174,9 @@ data "aws_iam_policy_document" "deploy_config" {
     actions = [
       "ecs:UpdateService",
       "ecs:DeleteService",
+      # リソースレベル権限に非対応のため `*` で許可している（iam_deploy_compute.tf）。
+      # 環境の制限はこのタグ条件が担う
+      "ecs:DeregisterTaskDefinition",
       "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
       "lambda:DeleteFunction",

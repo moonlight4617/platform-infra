@@ -36,6 +36,25 @@ variable "github_owner" {
   default     = "moonlight4617"
 }
 
+variable "github_owner_id" {
+  description = <<-EOT
+    GitHubオーナーの数値ID。
+
+    GitHubのOIDCトークンは「不変サブジェクト」が既定になっており、
+    sub クレームにオーナーIDとリポジトリIDが含まれる。
+
+      repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:<env>
+
+    リポジトリの改名・削除・再作成に対する耐性を持たせるための仕組みで、
+    信頼関係を名前ではなくIDに結びつける。
+
+    確認: gh api users/<owner> --jq .id
+    これは公開情報であり機密ではない（ADR-0002の対象外）。
+  EOT
+  type        = string
+  default     = "70841616"
+}
+
 variable "environments" {
   description = "環境の一覧。並び順がALBリスナールールの優先度の割り当てに影響する"
   type        = list(string)
@@ -48,6 +67,10 @@ variable "app_repositories" {
     OIDCの信頼ポリシー、ECR、ALBのルール優先度の割り当てに使う。
 
       repo    : GitHubリポジトリ名
+      repo_id : GitHubリポジトリの数値ID。OIDCの不変サブジェクトに必要。
+                null の場合、そのリポジトリにはAWSへのアクセスを許可しない
+                （まだGitHub上に作成していないリポジトリ）。
+                確認: gh api repos/<owner>/<repo> --jq .id
       service : サービス名
       app     : アプリ名（infraリポジトリは null）
       runtime : java / python / typescript / none
@@ -55,6 +78,7 @@ variable "app_repositories" {
   EOT
   type = list(object({
     repo    = string
+    repo_id = optional(string)
     service = string
     app     = optional(string)
     runtime = string
@@ -64,6 +88,7 @@ variable "app_repositories" {
   default = [
     {
       repo    = "serviceA-infra"
+      repo_id = null # 未作成
       service = "serviceA"
       app     = null
       runtime = "none"
@@ -71,6 +96,7 @@ variable "app_repositories" {
     },
     {
       repo    = "serviceA-appA"
+      repo_id = "1413353244"
       service = "serviceA"
       app     = "appA"
       runtime = "java"
@@ -78,6 +104,7 @@ variable "app_repositories" {
     },
     {
       repo    = "serviceA-appB"
+      repo_id = null # 未作成
       service = "serviceA"
       app     = "appB"
       runtime = "python"
@@ -85,6 +112,7 @@ variable "app_repositories" {
     },
     {
       repo    = "serviceA-appC"
+      repo_id = null # 未作成
       service = "serviceA"
       app     = "appC"
       runtime = "typescript"
@@ -104,6 +132,24 @@ variable "app_repositories" {
       for r in var.app_repositories : r.deploy == "infra" ? r.app == null : r.app != null
     ])
     error_message = "deploy=infra のリポジトリは app を null に、それ以外は app を指定してください。"
+  }
+}
+
+variable "platform_repo_ids" {
+  description = <<-EOT
+    プラットフォーム側リポジトリの数値ID。
+    OIDCの不変サブジェクト（github_owner_id の説明を参照）に必要。
+
+    確認: gh api repos/<owner>/platform-infra --jq .id
+  EOT
+  type = object({
+    platform-infra = optional(string)
+    platform-cicd  = optional(string)
+  })
+
+  default = {
+    platform-infra = "1413352985"
+    platform-cicd  = "1413353125"
   }
 }
 
