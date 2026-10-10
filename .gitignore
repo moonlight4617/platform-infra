@@ -1,0 +1,25 @@
+# ADR-0002: 機密値はリポジトリに置かない
+# ローカル実行用の実値はここに置く（git管理外）
+local/
+
+# tfvars の実値はコミットしない。example のみ追跡する
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Terraform
+# .terraform.lock.hcl は意図的に追跡する（プロバイダのバージョンを固定するため）
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+tfplan
+tfplan.*
+*.tfplan
