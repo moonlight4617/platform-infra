@@ -45,6 +45,25 @@ data "aws_iam_policy_document" "deploy_compute" {
     }
   }
 
+  # RegisterTaskDefinition にタグを付けると、ECSは別途 ecs:TagResource の
+  # 権限を要求する（タスク定義のARNに対して評価される）。
+  # タグ付けは aws:RequestTag/Environment で縛っているため必須の操作であり、
+  # この権限が無いとタスク定義を1つも作れない。
+  statement {
+    sid    = "EcsTagTaskDefinition"
+    effect = "Allow"
+
+    actions = [
+      "ecs:TagResource",
+      "ecs:UntagResource",
+    ]
+
+    resources = [
+      "arn:${local.partition}:ecs:${local.region}:${local.account_id}:task-definition/*-${each.value}:*",
+      "arn:${local.partition}:ecs:${local.region}:${local.account_id}:task-definition/*-${each.value}-*:*",
+    ]
+  }
+
   # ecs:DeregisterTaskDefinition は**リソースレベル権限に対応していない**。
   # task-definition のARNを指定すると、どのパターンでも一致せず
   # implicitDeny になる（IAMポリシーシミュレータで確認済み）。
