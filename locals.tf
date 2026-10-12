@@ -91,6 +91,26 @@ locals {
     )
   }
 
+  # 承認の記録専用（ADR-0003）。
+  #
+  # 承認ゲートのジョブは「承認を受けたこと」をDynamoDBに追記するためだけに
+  # AWSへアクセスする。ここにデプロイ可能なロールを渡してはいけない。
+  #
+  #   - prodロールを許可すると、prod-approval-1 の段階でprodへデプロイできてしまい、
+  #     3段承認を迂回できる（FR-25の破れ）
+  #   - stageロールを許可すると、承認記録のためにstageへのデプロイ権限を
+  #     与えることになり、最小権限に反する
+  #
+  # そのため「承認記録テーブルへの追記だけができる」ロールを別に用意する。
+  approval_subjects = flatten([
+    for prefix in values(local.repo_prefix) : [
+      "${prefix}:environment:stage",
+      "${prefix}:environment:prod-approval-1",
+      "${prefix}:environment:prod-approval-2",
+      "${prefix}:environment:prod-approval-3",
+    ]
+  ])
+
   # platform-infra 自身のデプロイ用。共有リソース（VPC/ALB/IAM）を変更するため、
   # prod と同じ3段承認を通す前提で environment: prod のみを許可する
   platform_subjects = [

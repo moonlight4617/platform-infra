@@ -22,6 +22,8 @@ output "github_secrets" {
     AWS_ROLE_ARN_STAGE    = aws_iam_role.deploy["stage"].arn
     AWS_ROLE_ARN_PROD     = aws_iam_role.deploy["prod"].arn
     AWS_ROLE_ARN_PLATFORM = aws_iam_role.platform.arn
+    # 承認記録専用。デプロイ権限を持たない（FR-25）
+    AWS_ROLE_ARN_APPROVAL = aws_iam_role.approval.arn
     RELEASES_TABLE        = aws_dynamodb_table.releases.name
     TICKETS_TABLE         = aws_dynamodb_table.tickets.name
     APPROVAL_AUDIT_TABLE  = aws_dynamodb_table.approval_audit.name

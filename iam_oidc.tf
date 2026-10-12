@@ -99,6 +99,30 @@ data "aws_iam_policy_document" "assume_deploy" {
   }
 }
 
+data "aws_iam_policy_document" "assume_approval" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [local.github_oidc_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.approval_subjects
+    }
+  }
+}
+
 data "aws_iam_policy_document" "assume_platform" {
   statement {
     effect  = "Allow"
@@ -149,6 +173,17 @@ resource "aws_iam_role" "deploy" {
   tags = {
     Purpose     = "deploy"
     Environment = each.value
+  }
+}
+
+resource "aws_iam_role" "approval" {
+  name                 = "${var.name_prefix}-gha-approval"
+  description          = "GitHub Actions approval audit only (DynamoDB append)"
+  assume_role_policy   = data.aws_iam_policy_document.assume_approval.json
+  max_session_duration = 3600
+
+  tags = {
+    Purpose = "approval"
   }
 }
 
