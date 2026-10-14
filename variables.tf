@@ -153,6 +153,19 @@ variable "platform_repo_ids" {
   }
 }
 
+variable "allow_bucket_force_destroy" {
+  description = <<-EOT
+    S3バケットの force_destroy を有効にするか。
+
+    既定は false。バージョン付きオブジェクトが残った状態での destroy を
+    失敗させることで、監査対象のレポート（ADR-0009）を誤って失うことを防ぐ。
+
+    実験環境の後片付けでのみ true にする。
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "vpc_cidr" {
   description = "VPCのCIDR"
   type        = string

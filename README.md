@@ -193,7 +193,30 @@ ALB 1台を3環境で共有しているため、`CreateRule` のリソースが�
 | SSMパラメータの参照関係を一覧する手段がない | ADR-0014の未解決事項 |
 | タスクがパブリックサブネットにある | ADR-0013。実務では必ずプライベートサブネットへ |
 
-## 構築済みの状態（2026-10-11）
+## 現在の状態: 削除済み（2026-10-14）
+
+**実機検証を完了し、AWSリソースはすべて削除した。** 課金は発生していない。
+
+検証結果は [platform-cicd/docs/lessons-learned.md](../platform-cicd/docs/lessons-learned.md) を参照。
+
+再構築する場合は後述の「構築手順」に従う。その際は次に注意する。
+
+| 項目 | 内容 |
+|---|---|
+| `name_prefix` | S3バケット名に使うため、前回と別の値にする（削除直後の同名バケットは作成できない場合がある） |
+| `github_owner_id` / `repo_id` | リポジトリを作り直した場合はIDが変わる。`gh api repos/<owner>/<repo> --jq .id` で再取得する |
+| GitHub Secrets | 削除済みリソースを指しているため、再apply後に `scripts/setup-github.py` で再配布する |
+| Drift detection ワークフロー | 削除時に無効化した。再構築後に `gh workflow enable drift-detection.yml` で有効化する |
+
+### 削除時に判明したこと
+
+| 内容 |
+|---|
+| **`terraform apply` が削除保護を再有効化する。** DynamoDBの `deletion_protection_enabled = true` をCLIで解除しても、applyを挟むと元に戻るためdestroyが失敗する |
+| **S3の `force_destroy` は既定でfalseにしていた。** バージョン付きオブジェクトが残っていると destroy が失敗する。監査対象のレポートを誤って失わないための設計であり、後片付けでは `allow_bucket_force_destroy=true` を指定する |
+| **tfstateバケットは `prevent_destroy` で保護している。** 全環境のstateを失う事故を防ぐための意図的な設計で、`terraform destroy` では削除できない。後片付けでは一時的に解除する必要がある |
+
+## 構築済みだった状態（2026-10-11 〜 10-14）
 
 **apply済み。** state上のリソース数は165。
 

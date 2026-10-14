@@ -9,6 +9,11 @@
 
 resource "aws_s3_bucket" "reports" {
   bucket = "${var.name_prefix}-cicd-reports"
+
+  # 既定では false。バージョン付きオブジェクトが残っていると destroy が失敗し、
+  # 誤って監査対象のレポートを失うことを防ぐ。
+  # 実験環境の後片付けでのみ true にする
+  force_destroy = var.allow_bucket_force_destroy
 }
 
 resource "aws_s3_bucket_versioning" "reports" {
@@ -103,6 +108,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "reports" {
 
 resource "aws_s3_bucket" "artifacts" {
   bucket = "${var.name_prefix}-cicd-artifacts"
+
+  force_destroy = var.allow_bucket_force_destroy
 }
 
 resource "aws_s3_bucket_versioning" "artifacts" {
